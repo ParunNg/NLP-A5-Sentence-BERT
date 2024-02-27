@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Sentence BERT</title>
+{% endblock %}
+
+{% block body %}
+<div class="content">
+    <div class="query_box">
+        <h3 class="web_title">Sentence BERT</h3>
+        <form action="/" method="POST">
+            <label for="Sentence A">Sentence A:</label>
+            <br>
+            <div class="prompt_inner">
+                <input type="text" name="sentence_a" id="fill_in" value="{{ sentence_a }}" required="required">
+            </div>
+            <label for="Sentence B">Sentence B:</label>
+            <br>
+            <div class="prompt_inner">
+                <input type="text" name="sentence_b" id="fill_in" value="{{ sentence_b }}" required="required">
+            </div>
+            <input id="submit" type="submit" value="Submit">
+        </form>
+    </div>
+</div>    
+
+{% if output %}
+<div class="output">
+    <h4>Cosine Similarity:</h4>
+    <p>{{ output }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

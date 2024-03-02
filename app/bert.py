@@ -1,8 +1,9 @@
-import numpy as np
+import re
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from sklearn.metrics.pairwise import cosine_similarity
 
 class Embedding(nn.Module):
     def __init__(self, vocab_size, max_len, n_segments, d_model, device):
@@ -20,7 +21,7 @@ class Embedding(nn.Module):
         pos = pos.unsqueeze(0).expand_as(x)  # (len,) -> (bs, len)
         embedding = self.tok_embed(x) + self.pos_embed(pos) + self.seg_embed(seg)
         return self.norm(embedding)
-    
+
 def get_attn_pad_mask(seq_q, seq_k, device):
     batch_size, len_q = seq_q.size()
     batch_size, len_k = seq_k.size()
@@ -38,7 +39,7 @@ class EncoderLayer(nn.Module):
         enc_outputs, attn = self.enc_self_attn(enc_inputs, enc_inputs, enc_inputs, enc_self_attn_mask) # enc_inputs to same Q,K,V
         enc_outputs = self.pos_ffn(enc_outputs) # enc_outputs: [batch_size x len_q x d_model]
         return enc_outputs, attn
-    
+
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, d_k, device):
         super(ScaledDotProductAttention, self).__init__()
@@ -50,7 +51,7 @@ class ScaledDotProductAttention(nn.Module):
         attn = nn.Softmax(dim=-1)(scores)
         context = torch.matmul(attn, V)
         return context, attn 
-    
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads, d_model, d_k, device):
         super(MultiHeadAttention, self).__init__()
@@ -136,8 +137,7 @@ class BERT(nn.Module):
             output, enc_self_attn = layer(output, enc_self_attn_mask)
 
         return output
-    
-# define mean pooling function
+
 def mean_pool(token_embeds, attention_mask):
     # reshape attention_mask to cover 768-dimension embeddings
     in_mask = attention_mask.unsqueeze(-1).expand(
@@ -148,24 +148,28 @@ def mean_pool(token_embeds, attention_mask):
         in_mask.sum(1), min=1e-9
     )
     return pool
-
-def cosine_similarity(u, v):
-    dot_product = np.dot(u, v.T)
-    norm_u = np.linalg.norm(u)
-    norm_v = np.linalg.norm(v)
-    similarity = dot_product / (norm_u * norm_v)
-    return similarity
     
-def calculate_similarity(model, tokenizer, max_seq_length, sentence_a, sentence_b, device):
+def get_inputs(sentence, tokenizer, vocab, max_seq_length):
+    tokens = tokenizer(re.sub("[.,!?\\-]", '', sentence.lower()))
+    input_ids = [vocab['[CLS]']] + [vocab[token] for token in tokens] + [vocab['[SEP]']]
+    n_pad = max_seq_length - len(input_ids)
+    attention_mask = ([1] * len(input_ids)) + ([0] * n_pad)
+    input_ids = input_ids + ([0] * n_pad)
+
+    return {'input_ids': torch.LongTensor(input_ids).reshape(1, -1),
+            'attention_mask': torch.LongTensor(attention_mask).reshape(1, -1)}
+    
+def calculate_similarity(model, tokenizer, vocab, max_seq_length, sentence_a, sentence_b, device):
     # Tokenize and convert sentences to input IDs and attention masks
-    inputs_a = tokenizer(sentence_a, return_tensors='pt', max_length=max_seq_length, truncation=True, padding='max_length').to(device)
-    inputs_b = tokenizer(sentence_b, return_tensors='pt', max_length=max_seq_length, truncation=True, padding='max_length').to(device)
+    inputs_a = get_inputs(sentence_a, tokenizer, vocab, max_seq_length)
+    inputs_b = get_inputs(sentence_b, tokenizer, vocab, max_seq_length)
+    
 
     # Move input IDs and attention masks to the active device
-    inputs_ids_a = inputs_a['input_ids']
-    attention_a = inputs_a['attention_mask']
-    inputs_ids_b = inputs_b['input_ids']
-    attention_b = inputs_b['attention_mask']
+    inputs_ids_a = inputs_a['input_ids'].to(device)
+    attention_a = inputs_a['attention_mask'].to(device)
+    inputs_ids_b = inputs_b['input_ids'].to(device)
+    attention_b = inputs_b['attention_mask'].to(device)
     segment_ids = torch.zeros(1, max_seq_length, dtype=torch.int32).to(device)
 
     # Extract token embeddings from BERT

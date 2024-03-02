@@ -19,7 +19,7 @@ class Embedding(nn.Module):
         pos = pos.unsqueeze(0).expand_as(x)  # (len,) -> (bs, len)
         embedding = self.tok_embed(x) + self.pos_embed(pos) + self.seg_embed(seg)
         return self.norm(embedding)
-    
+
 def get_attn_pad_mask(seq_q, seq_k, device):
     batch_size, len_q = seq_q.size()
     batch_size, len_k = seq_k.size()
@@ -37,7 +37,7 @@ class EncoderLayer(nn.Module):
         enc_outputs, attn = self.enc_self_attn(enc_inputs, enc_inputs, enc_inputs, enc_self_attn_mask) # enc_inputs to same Q,K,V
         enc_outputs = self.pos_ffn(enc_outputs) # enc_outputs: [batch_size x len_q x d_model]
         return enc_outputs, attn
-    
+
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, d_k, device):
         super(ScaledDotProductAttention, self).__init__()
@@ -49,7 +49,7 @@ class ScaledDotProductAttention(nn.Module):
         attn = nn.Softmax(dim=-1)(scores)
         context = torch.matmul(attn, V)
         return context, attn 
-    
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads, d_model, d_k, device):
         super(MultiHeadAttention, self).__init__()

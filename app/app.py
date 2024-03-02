@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request
 from bert import *
-from transformers import BertTokenizer
 import torch
+import torchtext
 
 app = Flask(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+tokenizer = torchtext.data.utils.get_tokenizer('basic_english')
+vocab = torch.load('../model/vocab')
 
 params, state = torch.load('../model/s-bert.pt')
 model = BERT(**params, device=device).to(device)
@@ -21,7 +23,7 @@ def index():
         # Hyperparameters for model inference
         sentence_a = request.form['sentence_a']
         sentence_b = request.form['sentence_b']
-        score = calculate_similarity(model, tokenizer, params['max_len'], sentence_a, sentence_b, device)
+        score = calculate_similarity(model, tokenizer, vocab, params['max_len'], sentence_a, sentence_b, device)
 
         return render_template('home.html', sentence_a=sentence_a, sentence_b=sentence_b, output=round(score, 4))
 
